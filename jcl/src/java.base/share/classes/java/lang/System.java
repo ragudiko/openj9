@@ -471,7 +471,10 @@ public final class System {
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
 		setErr(createConsole(FileDescriptor.err, stderrCharset));
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-		setOut(createConsole(FileDescriptor.out, stdoutCharset));
+		if(stdoutCharset!=null)
+			setOut(createConsole(FileDescriptor.out, stdoutCharset));
+		else
+			setOut(createConsole(FileDescriptor.out, consoleDefaultCharset));
 		/*[IF Sidecar19-SE_RAWPLUSJ9]*/
 		setIn(new BufferedInputStream(new FileInputStream(FileDescriptor.in)));
 		/*[ENDIF] Sidecar19-SE_RAWPLUSJ9 */
