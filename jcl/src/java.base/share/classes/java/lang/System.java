@@ -285,6 +285,20 @@ public final class System {
 				props.put("stderr.encoding", consoleCharset.name()); //$NON-NLS-1$
 			}
 		}
+		
+		// ce changes forcing console.encoding as consoleCharset for testing start
+		try {
+			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
+//			if (consoleDefaultEncoding == null) {
+//				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
+//			}
+			if (consoleDefaultEncoding != null)
+				consoleCharset = Charset.forName(consoleDefaultEncoding); //$NON-NLS-1$
+		} catch (IllegalArgumentException e) {
+			// use the defaultCharset()
+		}
+		// ce changes forcing console.encoding as consoleCharset for testing end 
+		
 		/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 		/*[IF PLATFORM-mz31 | PLATFORM-mz64]*/
