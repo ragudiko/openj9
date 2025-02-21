@@ -763,6 +763,11 @@ freeJavaVM(J9JavaVM * vm)
 	}
 #endif
 
+#if defined(J9VM_OPT_JFR)
+	j9mem_free_memory(vm->jfrState.jfrFileName);
+	vm->jfrState.jfrFileName = NULL;
+#endif /* defined(J9VM_OPT_JFR) */
+
 #if defined(J9VM_INTERP_ATOMIC_FREE_JNI_USES_FLUSH)
 	shutDownExclusiveAccess(vm);
 #endif /* J9VM_INTERP_ATOMIC_FREE_JNI_USES_FLUSH */
@@ -1181,6 +1186,7 @@ initializeJavaVM(void * osMainThread, J9JavaVM ** vmPtr, J9CreateJavaVMParams *c
 	vm->threadDllHandle = createParams->threadDllHandle;
 #if defined(J9VM_OPT_JFR)
 	vm->loadedClassCount = 0;
+	vm->jfrState.blobFileDescriptor = -1;
 #endif /* defined(J9VM_OPT_JFR) */
 
 #if JAVA_SPEC_VERSION >= 19
@@ -2015,16 +2021,16 @@ j9print_internal_version(J9PortLibrary *portLib)
 
 #if defined(OPENJ9_BUILD)
 #if defined(J9JDK_EXT_VERSION) && defined(J9JDK_EXT_NAME)
-	j9tty_err_printf(PORTLIB, "Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE with %s %s, built on %s %s by %s with %s\n",
-		J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
-		J9JDK_EXT_NAME, J9JDK_EXT_VERSION,__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
+	j9tty_err_printf("Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE with %s %s, built on %s %s by %s with %s\n",
+			J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
+			J9JDK_EXT_NAME, J9JDK_EXT_VERSION,__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
 #else
-        j9tty_err_printf(PORTLIB, "Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE, built on %s %s by %s with %s\n",
-                J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
-                __DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
+	j9tty_err_printf("Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE, built on %s %s by %s with %s\n",
+			J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
+			__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
 #endif /* J9JDK_EXT_VERSION && J9JDK_EXT_NAME */
 #else /* OPENJ9_BUILD */
-	j9tty_err_printf(PORTLIB, "internal version not supported\n");
+	j9tty_err_printf("internal version not supported\n");
 #endif /* OPENJ9_BUILD */
 }
 

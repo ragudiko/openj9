@@ -2349,6 +2349,7 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::java_lang_Object_clone,                "clone",                "()Ljava/lang/Object;")},
       {x(TR::java_lang_Object_newInstancePrototype, "newInstancePrototype", "(Ljava/lang/Class;)Ljava/lang/Object;")},
       {x(TR::java_lang_Object_getAddressAsPrimitive, "getAddressAsPrimitive", "(Ljava/lang/Object;)I")},
+      {x(TR::java_lang_Object_hashCode,             "hashCode",             "()I")},
       {  TR::unknownMethod}
       };
 
@@ -3234,7 +3235,8 @@ void TR_ResolvedJ9Method::construct()
       {
       { x(TR::java_lang_StringLatin1_indexOf,                                 "indexOf",       "([BI[BII)I")},
       { x(TR::java_lang_StringLatin1_indexOfChar,                             "indexOfChar",   "([BIII)I")},
-      { x(TR::java_lang_StringLatin1_inflate,                                 "inflate",       "([BI[CII)V")},
+      { x(TR::java_lang_StringLatin1_inflate_BICII,                           "inflate",       "([BI[CII)V")},
+      { x(TR::java_lang_StringLatin1_inflate_BIBII,                           "inflate",       "([BI[BII)V")},
       { TR::unknownMethod }
       };
 
@@ -5121,7 +5123,8 @@ TR_ResolvedJ9Method::setRecognizedMethodInfo(TR::RecognizedMethod rm)
             case TR::java_lang_System_nanoTime:
             case TR::java_lang_String_hashCodeImplCompressed:
             case TR::java_lang_String_hashCodeImplDecompressed:
-            case TR::java_lang_StringLatin1_inflate:
+            case TR::java_lang_StringLatin1_inflate_BICII:
+            case TR::java_lang_StringLatin1_inflate_BIBII:
             case TR::java_lang_StringCoding_hasNegatives:
             case TR::java_lang_StringCoding_countPositives:
             case TR::sun_nio_ch_NativeThread_current:
@@ -6447,6 +6450,33 @@ TR_ResolvedJ9Method::getClassFromCP(TR_J9VMBase *fej9, J9ConstantPool *cp, TR::C
       }
 
    return result;
+   }
+
+bool
+TR_ResolvedJ9Method::isStable(int32_t cpIndex, TR::Compilation *comp)
+   {
+   if (comp->getOption(TR_DisableStableAnnotations))
+      return false;
+
+   if (cpIndex < 0)
+      return false;
+
+   J9Class *fieldClass = (J9Class*)classOfMethod();
+   if (!fieldClass)
+      return false;
+
+   bool isFieldStable = fej9()->isStable(fieldClass, cpIndex);
+
+   if (isFieldStable && comp->getOption(TR_TraceOptDetails))
+      {
+      int classLen;
+      const char * className= classNameOfFieldOrStatic(cpIndex, classLen);
+      int fieldLen;
+      const char * fieldName = fieldNameChars(cpIndex, fieldLen);
+      traceMsg(comp, "   Found stable field: %.*s.%.*s\n", classLen, className, fieldLen, fieldName);
+      }
+
+   return isFieldStable;
    }
 
 TR_OpaqueClassBlock *
@@ -8386,7 +8416,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
 
          uintptr_t methodHandle;
          uintptr_t methodDescriptorRef;
-         intptr_t methodDescriptorLength;
+         uintptr_t methodDescriptorLength;
 
 #if defined(J9VM_OPT_JITSERVER)
          if (comp()->isOutOfProcessCompilation())
@@ -9235,7 +9265,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             numArgsPassToFinallyTarget = (int32_t)fej9->getArrayLengthInElements(arguments);
 
             uintptr_t methodDescriptorRef = fej9->getReferenceField(finallyType, "methodDescriptor", "Ljava/lang/String;");
-            int methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
+            intptr_t methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
             methodDescriptor = (char*)alloca(methodDescriptorLength+1);
             fej9->getStringUTF8(methodDescriptorRef, methodDescriptor, methodDescriptorLength+1);
             }

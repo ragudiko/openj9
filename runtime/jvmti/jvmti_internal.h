@@ -2173,6 +2173,18 @@ jvmtiNotifyFramePop(jvmtiEnv* env,
 	jthread thread,
 	jint depth);
 
+#if JAVA_SPEC_VERSION >= 25
+/**
+ * @brief Clear all frame pop request to prevent generation of
+ * FramePop events for any frames.
+ *
+ * @param env The JVMTI environment pointer
+ * @param thread The thread whose FramePop events will be cleared
+ * @return jvmtiError Error code returned by JVMTI function
+ */
+jvmtiError JNICALL
+jvmtiClearAllFramePops(jvmtiEnv *env, jthread thread);
+#endif /* JAVA_SPEC_VERSION >= 25 */
 
 /**
 * @brief
@@ -2209,23 +2221,15 @@ jint JNICALL JVM_OnLoad(JavaVM *jvm, char* options, void *reserved);
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 /**
 * Check if any agent library is specified in the CRIU restore option file,
-* if so, the checkpointState flag J9VM_CRIU_IS_JDWP_ENABLED is set, but the
-* actual library loading is deferred at criuRestoreStartAgent() invoked via
-* TRIGGER_J9HOOK_VM_CRIU_RESTORE().
+* if so, the checkpointState flag J9VM_CRIU_IS_JDWP_ENABLED is set, and
+* load/start the library loading.
+*
 * @param[in] vm the pointer to the J9JavaVM struct
 * @param[in] j9env - pointer to the current JVMTI environment
 * @return void
 */
 void
 criuRestoreInitializeLib(J9JavaVM *vm, J9JVMTIEnv *j9env);
-
-/**
- * Load and initialize libraries from CRIU restore option file.
- * @param[in] vm the pointer to the J9JavaVM struct
- * @return void
- */
-void
-criuRestoreStartAgent(J9JavaVM *vm);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 /* ---------------- jvmtiSystemProperties.c ---------------- */

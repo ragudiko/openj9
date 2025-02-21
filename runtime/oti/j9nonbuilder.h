@@ -462,10 +462,10 @@ typedef struct J9JFRClassLoadingStatistics {
 
 typedef struct J9JFRThreadStatistics {
 	J9JFR_EVENT_COMMON_FIELDS
-	U_32 activeThreadCount;
-	U_32 daemonThreadCount;
-	U_32 accumulatedThreadCount;
-	U_32 peakThreadCount;
+	U_64 activeThreadCount;
+	U_64 daemonThreadCount;
+	U_64 accumulatedThreadCount;
+	U_64 peakThreadCount;
 } J9JFRThreadStatistics;
 
 typedef struct J9JFRThreadContextSwitchRate {
@@ -4364,6 +4364,7 @@ typedef struct J9JITConfig {
 	void *serverAOTMethodSet;
 	UDATA serverAOTQueryThread;
 #endif /* defined(J9VM_OPT_JITSERVER) */
+	I_32 lowCodeCacheFreeSpace; /* bool set to 1 when the JIT detects a very low amount of free code cache space; never reset */
 } J9JITConfig;
 
 #if defined(J9VM_OPT_CRIU_SUPPORT)
@@ -4448,6 +4449,8 @@ typedef struct J9CRIUCheckpointState {
 	int (*criuInitOptsFunctionPointerType)(void);
 	int (*criuDumpFunctionPointerType)(void);
 	void (*criuSetGhostFileLimitFunctionPointerType)(U_32 ghostFileLimit);
+	void (*criuSetTcpCloseFunctionPointerType)(BOOLEAN tcpClose);
+	void (*criuSetTcpTcpSkipInFlightFunctionPointerType)(BOOLEAN tcpSkipInFlight);
 	UDATA libCRIUHandle;
 	struct J9VMInitArgs *restoreArgsList;
 	char *restoreArgsChars;
@@ -4461,6 +4464,7 @@ typedef struct J9CRIUCheckpointState {
 	UDATA javaDebugThreadCount;
 	jvmtiEnv *jvmtienv;
 	jvmtiCapabilities requiredCapabilities;
+	BOOLEAN isDebugOnRestoreEnabled;
 } J9CRIUCheckpointState;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
@@ -4707,6 +4711,8 @@ typedef struct J9MemoryManagerFunctions {
 	UDATA  ( *j9gc_get_softmx)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_get_initial_heap_size)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_get_maximum_heap_size)(struct J9JavaVM *javaVM) ;
+	UDATA  ( *j9gc_get_minimum_young_generation_size)(struct J9JavaVM *javaVM) ;
+	UDATA  ( *j9gc_get_maximum_young_generation_size)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_objaccess_checkClassLive)(struct J9JavaVM *javaVM, J9Class *classPtr) ;
 #if defined(J9VM_GC_OBJECT_ACCESS_BARRIER)
 	IDATA  ( *j9gc_objaccess_indexableReadI8)(struct J9VMThread *vmThread, J9IndexableObject *srcObject, I_32 index, UDATA isVolatile) ;
@@ -5253,6 +5259,7 @@ typedef struct J9InternalVMFunctions {
 	BOOLEAN (*isNonPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*isJVMInPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*isDebugOnRestoreEnabled)(struct J9JavaVM *vm);
+	BOOLEAN (*isDebugAgentDisabled)(struct J9JavaVM *vm);
 	void (*setRequiredGhostFileLimit)(struct J9VMThread *currentThread, U_32 ghostFileLimit);
 	BOOLEAN (*runInternalJVMCheckpointHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runInternalJVMRestoreHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
@@ -5263,7 +5270,8 @@ typedef struct J9InternalVMFunctions {
 	jobject (*getRestoreSystemProperites)(struct J9VMThread *currentThread);
 	BOOLEAN (*setupJNIFieldIDsAndCRIUAPI)(JNIEnv *env, jclass *currentExceptionClass, IDATA *systemReturnCode, const char **nlsMsgFormat);
 	void JNICALL (*criuCheckpointJVMImpl)(JNIEnv *env, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile,
-			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile, jlong ghostFileLimit);
+			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile,
+			jstring environmentFile, jlong ghostFileLimit, jboolean tcpClose, jboolean tcpSkipInFlight);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	j9object_t (*getClassNameString)(struct J9VMThread *currentThread, j9object_t classObject, jboolean internAndAssign);
 	j9object_t* (*getDefaultValueSlotAddress)(struct J9Class *clazz);
