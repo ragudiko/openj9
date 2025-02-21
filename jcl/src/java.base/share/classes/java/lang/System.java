@@ -419,8 +419,25 @@ public final class System {
 		Properties props = internalGetProperties();
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+		
+		/*  ce changes */
+		try {
+			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
+//			if (consoleDefaultEncoding == null) {
+//				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
+//			}
+			if (consoleDefaultEncoding != null)
+				consoleDefaultCharset = Charset.forName(consoleDefaultEncoding); //$NON-NLS-1$
+		} catch (IllegalArgumentException e) {
+			// use the defaultCharset()
+		}
+		
+		if (consoleDefaultEncoding == null) {
+			consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
+			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+		}
+		/*  ce changes end*/
+		
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
 		// Do not call Charset.defaultEncoding() since this would initialize the default encoding
@@ -471,10 +488,10 @@ public final class System {
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
 		setErr(createConsole(FileDescriptor.err, stderrCharset));
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-		if(stdoutCharset!=null)
-			setOut(createConsole(FileDescriptor.out, stdoutCharset));
-		else
+		if(consoleDefaultCharset!=null)
 			setOut(createConsole(FileDescriptor.out, consoleDefaultCharset));
+		else
+			setOut(createConsole(FileDescriptor.out, stdoutCharset));
 		/*[IF Sidecar19-SE_RAWPLUSJ9]*/
 		setIn(new BufferedInputStream(new FileInputStream(FileDescriptor.in)));
 		/*[ENDIF] Sidecar19-SE_RAWPLUSJ9 */
