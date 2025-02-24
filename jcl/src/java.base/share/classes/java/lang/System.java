@@ -828,11 +828,6 @@ private static void ensureProperties(boolean isInitialization) {
 			}
 		}
 	}
-	Properties props = internalGetProperties();
-	props.getProperty("console.encoding");
-	if (consoleDefaultEncoding != null)
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
-	// no else part as we want to choose consoleCharset if exists else stdout
 	/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 	/* java.lang.VersionProps.init() eventually calls into System.setProperty() where propertiesInitialized needs to be true */
@@ -853,6 +848,14 @@ private static void ensureProperties(boolean isInitialization) {
 	StringBuilder.initFromSystemProperties(systemProperties);
 /*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 /*[ENDIF] JAVA_SPEC_VERSION > 11 */
+
+/*[IF JAVA_SPEC_VERSION >= 19]*/
+	Properties props = internalGetProperties();
+	consoleDefaultEncoding = props.getProperty("console.encoding");
+	if (consoleDefaultEncoding != null)
+		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
+	/* no else part as we want to choose consoleCharset if exists else stdout in afterClinitInitialization() method */
+/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 /*[IF JAVA_SPEC_VERSION > 11]*/
 	String javaRuntimeVersion = initializedProperties.get("java.runtime.version"); //$NON-NLS-1$
