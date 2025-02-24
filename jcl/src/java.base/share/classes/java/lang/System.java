@@ -828,6 +828,11 @@ private static void ensureProperties(boolean isInitialization) {
 			}
 		}
 	}
+	Properties props = internalGetProperties();
+	props.getProperty("console.encoding");
+	if (consoleDefaultEncoding != null)
+		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
+	// no else part as we want to choose consoleCharset if exists else stdout
 	/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 	/* java.lang.VersionProps.init() eventually calls into System.setProperty() where propertiesInitialized needs to be true */
