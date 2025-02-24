@@ -275,10 +275,6 @@ public final class System {
 
 		/*[IF JAVA_SPEC_VERSION >= 19]*/
 		Properties props = internalGetProperties();
-		consoleDefaultEncoding = props.getProperty("console.encoding");
-		if (consoleDefaultEncoding != null)
-			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
-		consoleCharset = consoleDefaultCharset != null ? consoleDefaultCharset : charset;
 		// If the user didn't set the encoding property, set it now.
 		if (FileDescriptor.out == desc) {
 			if (null == stdoutProp) {
@@ -423,8 +419,11 @@ public final class System {
 		Properties props = internalGetProperties();
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+//		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
+//		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+		consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
+		consoleDefaultEncoding = consoleDefaultEncoding !=null ? consoleDefaultEncoding : props.getProperty("ibm.system.encoding"); // java 17 behavior
+		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); // if both console.encoding and ibm.system.encoding are null then fall back to UTF-8
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
 		// Do not call Charset.defaultEncoding() since this would initialize the default encoding
