@@ -420,24 +420,21 @@ public final class System {
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
 		
-		/*  ce changes repeated code to get consoleDefaultCharset*/
-	/* ***********
+		/*  ce changes start*/
 		try {
 			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
-//			if (consoleDefaultEncoding == null) {
-//				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
-//			}
-			if (consoleDefaultEncoding != null)
-				consoleDefaultCharset = Charset.forName(consoleDefaultEncoding); //$NON-NLS-1$
+			if (consoleDefaultEncoding == null) {
+				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
+			}
+			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); //$NON-NLS-1$
 		} catch (IllegalArgumentException e) {
 			// use the defaultCharset()
 		}
 		
-		if (consoleDefaultEncoding == null) {
-			consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
-		}
-*/
+//		if (consoleDefaultEncoding == null) {
+//			consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
+//			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+//		}
 		/*  ce changes end*/
 		
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
@@ -490,14 +487,10 @@ public final class System {
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
 		setErr(createConsole(FileDescriptor.err, stderrCharset));
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-		
-		/*  ce changes */
-//		setOut(createConsole(FileDescriptor.out, stdoutCharset));
 		if(consoleDefaultCharset!=null)
 			setOut(createConsole(FileDescriptor.out, consoleDefaultCharset));
 		else
 			setOut(createConsole(FileDescriptor.out, stdoutCharset));
-		/*  ce changes end */
 		/*[IF Sidecar19-SE_RAWPLUSJ9]*/
 		setIn(new BufferedInputStream(new FileInputStream(FileDescriptor.in)));
 		/*[ENDIF] Sidecar19-SE_RAWPLUSJ9 */
@@ -848,14 +841,6 @@ private static void ensureProperties(boolean isInitialization) {
 	StringBuilder.initFromSystemProperties(systemProperties);
 /*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 /*[ENDIF] JAVA_SPEC_VERSION > 11 */
-
-/*[IF JAVA_SPEC_VERSION >= 19]*/
-	Properties props = internalGetProperties();
-	consoleDefaultEncoding = props.getProperty("console.encoding");
-	if (consoleDefaultEncoding != null)
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
-	/* no else part as we want to choose consoleCharset if exists else stdout in afterClinitInitialization() method */
-/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 /*[IF JAVA_SPEC_VERSION > 11]*/
 	String javaRuntimeVersion = initializedProperties.get("java.runtime.version"); //$NON-NLS-1$
