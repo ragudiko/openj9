@@ -275,6 +275,10 @@ public final class System {
 
 		/*[IF JAVA_SPEC_VERSION >= 19]*/
 		Properties props = internalGetProperties();
+		consoleDefaultEncoding = props.getProperty("console.encoding");
+		if (consoleDefaultEncoding != null)
+			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding);
+		consoleCharset = consoleDefaultCharset != null ? consoleDefaultCharset : charset;
 		// If the user didn't set the encoding property, set it now.
 		if (FileDescriptor.out == desc) {
 			if (null == stdoutProp) {
@@ -471,10 +475,6 @@ public final class System {
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
 		setErr(createConsole(FileDescriptor.err, stderrCharset));
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-		/* ce changes  set stdoutCharset via prop and pass to createConsole just like jdk 11 start*/
-		String stdoutCharset = getCharsetName(props.getProperty("stdout.encoding"), consoleCharset); //$NON-NLS-1$
-		String stderrCharset = getCharsetName(props.getProperty("stderr.encoding"), consoleCharset); //$NON-NLS-1$
-		/* ce changes  set stdoutCharset via prop and pass to createConsole just like jdk 11  end */
 		setOut(createConsole(FileDescriptor.out, stdoutCharset));
 		/*[IF Sidecar19-SE_RAWPLUSJ9]*/
 		setIn(new BufferedInputStream(new FileInputStream(FileDescriptor.in)));
