@@ -419,11 +419,19 @@ public final class System {
 		Properties props = internalGetProperties();
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-//		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-//		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
-		consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
-		consoleDefaultEncoding = consoleDefaultEncoding !=null ? consoleDefaultEncoding : props.getProperty("ibm.system.encoding"); // java 17 behavior
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); // if both console.encoding and ibm.system.encoding are null then fall back to UTF-8
+		
+		/*  ce changes start*/
+		try {
+			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
+			if (consoleDefaultEncoding == null) {
+				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
+			}
+			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); //$NON-NLS-1$
+		} catch (IllegalArgumentException e) {
+			// use the defaultCharset()
+		}
+		/*  ce changes end*/
+		
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
 		// Do not call Charset.defaultEncoding() since this would initialize the default encoding
@@ -474,11 +482,11 @@ public final class System {
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
 		setErr(createConsole(FileDescriptor.err, stderrCharset));
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-//		setOut(createConsole(FileDescriptor.out, stdoutCharset));
-		if(consoleDefaultCharset!=null)
-			setOut(createConsole(FileDescriptor.out, consoleDefaultCharset));
-		else
-			setOut(createConsole(FileDescriptor.out, stdoutCharset));
+		setOut(createConsole(FileDescriptor.out, stdoutCharset));
+//		if(consoleDefaultCharset!=null)
+//			setOut(createConsole(FileDescriptor.out, consoleDefaultCharset));
+//		else
+//			setOut(createConsole(FileDescriptor.out, stdoutCharset));
 		/*[IF Sidecar19-SE_RAWPLUSJ9]*/
 		setIn(new BufferedInputStream(new FileInputStream(FileDescriptor.in)));
 		/*[ENDIF] Sidecar19-SE_RAWPLUSJ9 */
