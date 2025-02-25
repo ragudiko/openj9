@@ -285,20 +285,6 @@ public final class System {
 				props.put("stderr.encoding", consoleCharset.name()); //$NON-NLS-1$
 			}
 		}
-		
-		// ce changes forcing console.encoding as consoleCharset for testing start
-		try {
-			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
-//			if (consoleDefaultEncoding == null) {
-//				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
-//			}
-			if (consoleDefaultEncoding != null)
-				consoleCharset = Charset.forName(consoleDefaultEncoding); //$NON-NLS-1$
-		} catch (IllegalArgumentException e) {
-			// use the defaultCharset()
-		}
-		// ce changes forcing console.encoding as consoleCharset for testing end 
-		
 		/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
 		/*[IF PLATFORM-mz31 | PLATFORM-mz64]*/
@@ -433,8 +419,13 @@ public final class System {
 		Properties props = internalGetProperties();
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+		/* support for console encoding start*/
+		String consoleEncoding = props.getProperty("console.encoding");
+		if (consoleEncoding != null) {
+		    stderrProp = consoleEncoding;
+		    stdoutProp = consoleEncoding;
+		}
+		/* support for console encoding end */
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
 		// Do not call Charset.defaultEncoding() since this would initialize the default encoding
