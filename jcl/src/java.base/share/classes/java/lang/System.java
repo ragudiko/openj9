@@ -421,20 +421,13 @@ public final class System {
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
 		
 		/*  ce changes start*/
-		try {
-			consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
-			if (consoleDefaultEncoding == null) {
-				consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
-			}
-			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); //$NON-NLS-1$
-		} catch (IllegalArgumentException e) {
-			// use the defaultCharset()
+
+		consoleDefaultEncoding = props.getProperty("console.encoding"); //$NON-NLS-1$
+		if (consoleDefaultEncoding == null) {
+			consoleDefaultEncoding = props.getProperty("ibm.system.encoding"); //$NON-NLS-1$
 		}
+		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE); // $NON-NLS-1$
 		
-//		if (consoleDefaultEncoding == null) {
-//			consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
-//			consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
-//		}
 		/*  ce changes end*/
 		
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
