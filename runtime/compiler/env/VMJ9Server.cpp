@@ -1073,12 +1073,16 @@ TR_J9ServerVM::getHostClass(TR_OpaqueClassBlock *clazz)
    return hostClass;
    }
 
-intptr_t
+int32_t
 TR_J9ServerVM::getStringUTF8Length(uintptr_t objectPointer)
    {
-   JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
-   stream->write(JITServer::MessageType::VM_getStringUTF8Length, objectPointer);
-   return std::get<0>(stream->read<intptr_t>());
+   TR_ASSERT_FATAL(false, "getStringUTF8Length(uintptr_t) should not be called by JITServer");
+   }
+
+uint64_t
+TR_J9ServerVM::getStringUTF8UnabbreviatedLength(uintptr_t objectPointer)
+   {
+   TR_ASSERT_FATAL(false, "getStringUTF8UnabbreviatedLength(uintptr_t) should not be called by JITServer");
    }
 
 bool
@@ -1628,16 +1632,70 @@ TR_J9ServerVM::reportHotField(int32_t reducedCpuUtil, J9Class* clazz, uint8_t fi
 int32_t *
 TR_J9ServerVM::getReferenceSlotsInClass(TR::Compilation *comp, TR_OpaqueClassBlock *clazz)
    {
+   bool classIsCached = true;
+   // First check the cache
+      {
+      OMR::CriticalSection getRemoteROMClass(_compInfoPT->getClientData()->getROMMapMonitor());
+      auto it = _compInfoPT->getClientData()->getROMClassMap().find(reinterpret_cast<J9Class *>(clazz));
+      if (it != _compInfoPT->getClientData()->getROMClassMap().end())
+         {
+         // 'clazz' is cached. How about the reference slot info for this class?
+         auto &refSlotsCache = it->second._referenceSlotsInClass;
+         if (refSlotsCache.size() > 0)
+            {
+            // I have the reference fields cached. Copy them out.
+            if (refSlotsCache.size() == 1) // Last one is a 0 marker, i.e. end-of-list
+               return NULL; // 'clazz' has no reference fields
+            size_t sizeInBytes = refSlotsCache.size() * sizeof(int32_t);
+            // Ideally we would return a pointer inside the vector (refSlotsCache.data()),
+            // but the danger is that the compiler might try to free it. It's safer just to copy the data.
+            int32_t *refSlots = (int32_t *)comp->trHeapMemory().allocate(sizeInBytes);
+            if (!refSlots)
+               throw std::bad_alloc();
+            memcpy(refSlots, refSlotsCache.data(), sizeInBytes);
+            return refSlots;
+            }
+         }
+      else // Class is not cached
+         {
+         // Don't try to cache 'clazz'. Just ask the client for the reference slots info.
+         classIsCached = false;
+         }
+      }
+   int32_t numRefSlots = 0;
+   int32_t *refSlots = NULL;
+   // Send a message to the client to retrieve the desired data
    JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
    stream->write(JITServer::MessageType::VM_getReferenceSlotsInClass, clazz);
    auto recv = stream->read<std::string>();
    auto &slotsStr = std::get<0>(recv);
-   if (slotsStr.empty())
-      return NULL;
-   int32_t *refSlots = (int32_t *)comp->trHeapMemory().allocate(slotsStr.size());
-   if (!refSlots)
-      throw std::bad_alloc();
-   memcpy(refSlots, slotsStr.data(), slotsStr.size());
+   if (!slotsStr.empty())
+      {
+      refSlots = (int32_t *)comp->trHeapMemory().allocate(slotsStr.size());
+      if (!refSlots)
+         throw std::bad_alloc();
+      memcpy(refSlots, slotsStr.data(), slotsStr.size());
+      numRefSlots = slotsStr.size() / sizeof(int32_t) - 1; // Last entry is the NULL terminator
+      }
+
+   // If the class is cached, we can also cache the information about the reference slots.
+   if (classIsCached)
+      {
+      OMR::CriticalSection getRemoteROMClass(_compInfoPT->getClientData()->getROMMapMonitor());
+      auto it = _compInfoPT->getClientData()->getROMClassMap().find(reinterpret_cast<J9Class *>(clazz));
+      if (it != _compInfoPT->getClientData()->getROMClassMap().end())
+         {
+         auto &refSlotsCache = it->second._referenceSlotsInClass;
+         if (refSlots)
+            {
+            refSlotsCache.reserve(numRefSlots + 1);
+            for (int i = 0; i < numRefSlots; i++)
+               refSlotsCache.push_back(refSlots[i]);
+            }
+         // Add a 0 terminator for the sequence of reference slots.
+         refSlotsCache.push_back(0);
+         }
+      }
    return refSlots;
    }
 
@@ -2518,11 +2576,37 @@ TR_J9ServerVM::isLambdaFormGeneratedMethod(TR_ResolvedMethod *method)
    }
 
 bool
-TR_J9ServerVM::isStable(J9Class *fieldClass, int cpIndex)
+TR_J9ServerVM::isStable(J9Class *fieldClass, int32_t cpIndex)
    {
+   // See if we cached the presence of the annotation for this class and cpIndex
+      {
+      OMR::CriticalSection getRemoteROMClass(_compInfoPT->getClientData()->getROMMapMonitor());
+      // The fieldClass is guaranteed to be cached at the server because this
+      // method is called from a ResolvedMethod
+      auto &cache = JITServerHelpers::getJ9ClassInfo(_compInfoPT, fieldClass)._isStableCache;
+      auto it = cache.find(cpIndex);
+      if (it != cache.end())
+         return it->second;
+      }
+   // At the moment, @Stable annotations are only used in bootstrap classes (this can change though).
+   // To limit the number of VM_isStable messages further and to reduce the number of values that
+   // are cached in "_isStableCache" cache, we return 'false' when the `fieldClass` is not a bootstrap class.
+   static char *dontIgnore = feGetEnv("TR_DontIgnoreStableAnnotationForUserClasses");
+   if (!dontIgnore && !isClassLibraryClass((TR_OpaqueClassBlock*)fieldClass))
+      return false;
+
+   // Not cached; send a message and obtain the value
    JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
    stream->write(JITServer::MessageType::VM_isStable, fieldClass, cpIndex);
-   return std::get<0>(stream->read<bool>());
+   bool answer = std::get<0>(stream->read<bool>());
+
+   // Cache the answer
+      {
+      OMR::CriticalSection getRemoteROMClass(_compInfoPT->getClientData()->getROMMapMonitor());
+      auto &cache = JITServerHelpers::getJ9ClassInfo(_compInfoPT, fieldClass)._isStableCache;
+      cache.insert({cpIndex, answer});
+      }
+   return answer;
    }
 
 bool

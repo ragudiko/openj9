@@ -647,6 +647,12 @@ freeJavaVM(J9JavaVM * vm)
 	j9sig_set_async_signal_handler(sigxfszHandler, NULL, 0);
 #endif /* !defined(WIN32) */
 
+#if defined(J9VM_OPT_JFR)
+	if (J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_JFR_ENABLED)) {
+		shutdownJFRIDs(vm);
+	}
+#endif /* defined(J9VM_OPT_JFR) */
+
 #if JAVA_SPEC_VERSION >= 16
 	if (NULL != vm->cifNativeCalloutDataCache) {
 		pool_state poolState;
@@ -762,6 +768,11 @@ freeJavaVM(J9JavaVM * vm)
 		vm->zipCachePool = NULL;
 	}
 #endif
+
+#if defined(J9VM_OPT_JFR)
+	j9mem_free_memory(vm->jfrState.jfrFileName);
+	vm->jfrState.jfrFileName = NULL;
+#endif /* defined(J9VM_OPT_JFR) */
 
 #if defined(J9VM_INTERP_ATOMIC_FREE_JNI_USES_FLUSH)
 	shutDownExclusiveAccess(vm);
@@ -1181,6 +1192,7 @@ initializeJavaVM(void * osMainThread, J9JavaVM ** vmPtr, J9CreateJavaVMParams *c
 	vm->threadDllHandle = createParams->threadDllHandle;
 #if defined(J9VM_OPT_JFR)
 	vm->loadedClassCount = 0;
+	vm->jfrState.blobFileDescriptor = -1;
 #endif /* defined(J9VM_OPT_JFR) */
 
 #if JAVA_SPEC_VERSION >= 19
@@ -2015,16 +2027,16 @@ j9print_internal_version(J9PortLibrary *portLib)
 
 #if defined(OPENJ9_BUILD)
 #if defined(J9JDK_EXT_VERSION) && defined(J9JDK_EXT_NAME)
-	j9tty_err_printf(PORTLIB, "Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE with %s %s, built on %s %s by %s with %s\n",
-		J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
-		J9JDK_EXT_NAME, J9JDK_EXT_VERSION,__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
+	j9tty_err_printf("Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE with %s %s, built on %s %s by %s with %s\n",
+			J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
+			J9JDK_EXT_NAME, J9JDK_EXT_VERSION,__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
 #else
-        j9tty_err_printf(PORTLIB, "Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE, built on %s %s by %s with %s\n",
-                J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
-                __DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
+	j9tty_err_printf("Eclipse OpenJ9 %s %s-bit Server VM (%s) from %s-%s JRE, built on %s %s by %s with %s\n",
+			J9PRODUCT_NAME, J9TARGET_CPU_BITS, J9VERSION_STRING, J9TARGET_OS, J9TARGET_CPU_OSARCH,
+			__DATE__, __TIME__, J9USERNAME, J9COMPILER_VERSION_STRING);
 #endif /* J9JDK_EXT_VERSION && J9JDK_EXT_NAME */
 #else /* OPENJ9_BUILD */
-	j9tty_err_printf(PORTLIB, "internal version not supported\n");
+	j9tty_err_printf("internal version not supported\n");
 #endif /* OPENJ9_BUILD */
 }
 
@@ -2286,6 +2298,14 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 			if (0 != initializeHiddenInstanceFieldsList(vm)) {
 				goto _error;
 			}
+
+#if defined(J9VM_OPT_JFR)
+			if (J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_JFR_ENABLED)) {
+				if (0 != initializeJFRIDs(vm)) {
+					goto _error;
+				}
+			}
+#endif /* defined(J9VM_OPT_JFR) */
 
 			if (FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XALLOWCONTENDEDCLASSLOAD, NULL) >= 0) {
 				contendedLoadTableFree(vm);

@@ -462,10 +462,10 @@ typedef struct J9JFRClassLoadingStatistics {
 
 typedef struct J9JFRThreadStatistics {
 	J9JFR_EVENT_COMMON_FIELDS
-	U_32 activeThreadCount;
-	U_32 daemonThreadCount;
-	U_32 accumulatedThreadCount;
-	U_32 peakThreadCount;
+	U_64 activeThreadCount;
+	U_64 daemonThreadCount;
+	U_64 accumulatedThreadCount;
+	U_64 peakThreadCount;
 } J9JFRThreadStatistics;
 
 typedef struct J9JFRThreadContextSwitchRate {
@@ -2443,15 +2443,11 @@ typedef struct J9ROMMethodHandleRef {
 #define MN_TRUSTED_FINAL	0x00200000
 #define MN_HIDDEN_MEMBER	0x00400000
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
-#define MN_FLAT_FIELD		0x00800000
-#define MN_NULL_RESTRICTED	0x01000000
-#define MN_REFERENCE_KIND_SHIFT		26
-/* (flag >> MN_REFERENCE_KIND_SHIFT) & MN_REFERENCE_KIND_MASK */
-#define MN_REFERENCE_KIND_MASK		(0x3C000000 >> MN_REFERENCE_KIND_SHIFT)
-#else /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
-#define MN_REFERENCE_KIND_SHIFT	24
-#define MN_REFERENCE_KIND_MASK	0xF		/* (flag >> MN_REFERENCE_KIND_SHIFT) & MN_REFERENCE_KIND_MASK */
+#define MN_NULL_RESTRICTED	0x00800000
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+#define MN_REFERENCE_KIND_SHIFT	24
+/* (flag >> MN_REFERENCE_KIND_SHIFT) & MN_REFERENCE_KIND_MASK */
+#define MN_REFERENCE_KIND_MASK	(0x0F000000 >> MN_REFERENCE_KIND_SHIFT)
 
 typedef struct J9ROMMethodRef {
 	U_32 classRefCPIndex;
@@ -3640,6 +3636,9 @@ typedef struct J9ClassLoader {
 	omrthread_rwmutex_t cpEntriesMutex;
 	UDATA initClassPathEntryCount;
 	UDATA asyncGetCallTraceUsed;
+#if defined(J9VM_OPT_JFR)
+	J9HashTable *typeIDs;
+#endif /* defined(J9VM_OPT_JFR) */
 } J9ClassLoader;
 
 #define J9CLASSLOADER_SHARED_CLASSES_ENABLED  8
@@ -4364,6 +4363,7 @@ typedef struct J9JITConfig {
 	void *serverAOTMethodSet;
 	UDATA serverAOTQueryThread;
 #endif /* defined(J9VM_OPT_JITSERVER) */
+	I_32 lowCodeCacheFreeSpace; /* bool set to 1 when the JIT detects a very low amount of free code cache space; never reset */
 } J9JITConfig;
 
 #if defined(J9VM_OPT_CRIU_SUPPORT)
@@ -4448,6 +4448,8 @@ typedef struct J9CRIUCheckpointState {
 	int (*criuInitOptsFunctionPointerType)(void);
 	int (*criuDumpFunctionPointerType)(void);
 	void (*criuSetGhostFileLimitFunctionPointerType)(U_32 ghostFileLimit);
+	void (*criuSetTcpCloseFunctionPointerType)(BOOLEAN tcpClose);
+	void (*criuSetTcpTcpSkipInFlightFunctionPointerType)(BOOLEAN tcpSkipInFlight);
 	UDATA libCRIUHandle;
 	struct J9VMInitArgs *restoreArgsList;
 	char *restoreArgsChars;
@@ -4461,6 +4463,7 @@ typedef struct J9CRIUCheckpointState {
 	UDATA javaDebugThreadCount;
 	jvmtiEnv *jvmtienv;
 	jvmtiCapabilities requiredCapabilities;
+	BOOLEAN isDebugOnRestoreEnabled;
 } J9CRIUCheckpointState;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
@@ -4707,6 +4710,8 @@ typedef struct J9MemoryManagerFunctions {
 	UDATA  ( *j9gc_get_softmx)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_get_initial_heap_size)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_get_maximum_heap_size)(struct J9JavaVM *javaVM) ;
+	UDATA  ( *j9gc_get_minimum_young_generation_size)(struct J9JavaVM *javaVM) ;
+	UDATA  ( *j9gc_get_maximum_young_generation_size)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_objaccess_checkClassLive)(struct J9JavaVM *javaVM, J9Class *classPtr) ;
 #if defined(J9VM_GC_OBJECT_ACCESS_BARRIER)
 	IDATA  ( *j9gc_objaccess_indexableReadI8)(struct J9VMThread *vmThread, J9IndexableObject *srcObject, I_32 index, UDATA isVolatile) ;
@@ -4732,7 +4737,7 @@ typedef struct J9MemoryManagerFunctions {
 #endif /* !defined(J9VM_ENV_DATA64) */
 	void  ( *j9gc_objaccess_indexableStoreObject)(struct J9VMThread *vmThread, J9IndexableObject *destObject, I_32 index, j9object_t value, UDATA isVolatile) ;
 	void  ( *j9gc_objaccess_indexableStoreAddress)(struct J9VMThread *vmThread, J9IndexableObject *destObject, I_32 index, void *value, UDATA isVolatile) ;
-	IDATA  ( *j9gc_objaccess_indexableDataDisplacement)(struct J9VMThread *vmThread, J9IndexableObject *src, J9IndexableObject *dst) ;
+	IDATA  ( *j9gc_objaccess_indexableDataDisplacement)(struct J9StackWalkState *walkState, J9IndexableObject *src, J9IndexableObject *dst) ;
 	IDATA  ( *j9gc_objaccess_mixedObjectReadI32)(struct J9VMThread *vmThread, j9object_t srcObject, UDATA offset, UDATA isVolatile) ;
 	UDATA  ( *j9gc_objaccess_mixedObjectReadU32)(struct J9VMThread *vmThread, j9object_t srcObject, UDATA offset, UDATA isVolatile) ;
 	I_64  ( *j9gc_objaccess_mixedObjectReadI64)(struct J9VMThread *vmThread, j9object_t srcObject, UDATA offset, UDATA isVolatile) ;
@@ -5253,6 +5258,7 @@ typedef struct J9InternalVMFunctions {
 	BOOLEAN (*isNonPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*isJVMInPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*isDebugOnRestoreEnabled)(struct J9JavaVM *vm);
+	BOOLEAN (*isDebugAgentDisabled)(struct J9JavaVM *vm);
 	void (*setRequiredGhostFileLimit)(struct J9VMThread *currentThread, U_32 ghostFileLimit);
 	BOOLEAN (*runInternalJVMCheckpointHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runInternalJVMRestoreHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
@@ -5263,7 +5269,8 @@ typedef struct J9InternalVMFunctions {
 	jobject (*getRestoreSystemProperites)(struct J9VMThread *currentThread);
 	BOOLEAN (*setupJNIFieldIDsAndCRIUAPI)(JNIEnv *env, jclass *currentExceptionClass, IDATA *systemReturnCode, const char **nlsMsgFormat);
 	void JNICALL (*criuCheckpointJVMImpl)(JNIEnv *env, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile,
-			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile, jlong ghostFileLimit);
+			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile,
+			jstring environmentFile, jlong ghostFileLimit, jboolean tcpClose, jboolean tcpSkipInFlight);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	j9object_t (*getClassNameString)(struct J9VMThread *currentThread, j9object_t classObject, jboolean internAndAssign);
 	j9object_t* (*getDefaultValueSlotAddress)(struct J9Class *clazz);
@@ -5302,6 +5309,8 @@ typedef struct J9InternalVMFunctions {
 	void (*jfrExecutionSample)(struct J9VMThread *currentThread, struct J9VMThread *sampleThread);
 	jboolean (*setJFRRecordingFileName)(struct J9JavaVM *vm, char *fileName);
 	void (*tearDownJFR)(struct J9JavaVM *vm);
+	jlong (*getTypeIdUTF8)(struct J9VMThread *currentThread, const struct J9UTF8 *className);
+	jlong (*getTypeId)(struct J9VMThread *currentThread, struct J9Class *clazz);
 #endif /* defined(J9VM_OPT_JFR) */
 #if defined(J9VM_OPT_SNAPSHOTS)
 	void (*initializeSnapshotClassLoaderObject)(struct J9JavaVM *javaVM, struct J9ClassLoader *classLoader, j9object_t classLoaderObject);
@@ -5757,6 +5766,8 @@ typedef struct JFRState {
 	int64_t prevProcTimestamp;
 	int64_t prevContextSwitchTimestamp;
 	uint64_t prevContextSwitches;
+	omrthread_monitor_t typeIDMonitor;
+	jlong typeIDcount;
 } JFRState;
 
 typedef struct J9ReflectFunctionTable {

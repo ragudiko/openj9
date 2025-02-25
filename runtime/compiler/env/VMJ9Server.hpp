@@ -121,7 +121,8 @@ public:
    virtual bool hasFinalFieldsInClass(TR_OpaqueClassBlock *clazz) override;
    virtual const char *sampleSignature(TR_OpaqueMethodBlock * aMethod, char *buf, int32_t bufLen, TR_Memory *memory) override;
    virtual TR_OpaqueClassBlock * getHostClass(TR_OpaqueClassBlock *clazzOffset) override;
-   virtual intptr_t getStringUTF8Length(uintptr_t objectPointer) override;
+   virtual int32_t getStringUTF8Length(uintptr_t objectPointer) override;
+   virtual uint64_t getStringUTF8UnabbreviatedLength(uintptr_t objectPointer) override;
    virtual bool classInitIsFinished(TR_OpaqueClassBlock *) override;
    virtual int32_t getNewArrayTypeFromClass(TR_OpaqueClassBlock *clazz) override;
    virtual TR_OpaqueClassBlock *getClassFromNewArrayType(int32_t arrayType) override;
@@ -172,7 +173,7 @@ public:
    virtual uintptr_t getClassFlagsValue(TR_OpaqueClassBlock * clazz) override;
    virtual TR_OpaqueMethodBlock *getMethodFromName(const char *className, const char *methodName, const char *signature) override;
    virtual TR_OpaqueMethodBlock *getMethodFromClass(TR_OpaqueClassBlock *methodClass, const char *methodName, const char *signature, TR_OpaqueClassBlock *callingClass) override;
-   virtual bool isStable(J9Class *fieldClass, int cpIndex) override;
+   virtual bool isStable(J9Class *fieldClass, int32_t cpIndex) override;
    virtual bool isForceInline(TR_ResolvedMethod *method) override;
    virtual bool isIntrinsicCandidate(TR_ResolvedMethod *method) override;
    virtual bool isDontInline(TR_ResolvedMethod *method) override;
@@ -333,7 +334,7 @@ public:
    virtual bool       isResolvedVirtualDispatchGuaranteed(TR::Compilation *comp) override;
 
    virtual bool shouldDelayAotLoad() override                                  { return true; }
-   virtual bool isStable(int cpIndex, TR_ResolvedMethod *owningMethod, TR::Compilation *comp) override { return false; }
+   virtual bool isStable(J9Class *fieldClass, int32_t cpIndex) override { return false; }
    virtual bool isClassVisible(TR_OpaqueClassBlock *sourceClass, TR_OpaqueClassBlock *destClass) override;
    virtual bool stackWalkerMaySkipFrames(TR_OpaqueMethodBlock *method, TR_OpaqueClassBlock *methodClass) override;
    virtual bool isMethodTracingEnabled(TR_OpaqueMethodBlock *method) override;

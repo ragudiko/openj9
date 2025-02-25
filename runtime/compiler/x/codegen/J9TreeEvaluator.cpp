@@ -2957,11 +2957,25 @@ TR::Register *J9::X86::TreeEvaluator::ArrayStoreCHKEvaluator(TR::Node *node, TR:
                   !fej9->classHasBeenExtended(node->getArrayStoreClassInNode())
                  ) ?  true : false;
 
+   // OffHeap runs defer destination evaluation after GC point.
+   static char *disableDeferDestinationEvaluation = feGetEnv("TR_DisableDeferDestinationEvaluation");
+   bool deferDestinationEvaluation = TR::Compiler->om.isOffHeapAllocationEnabled() && !disableDeferDestinationEvaluation;
+
    doneLabel = generateLabelSymbol(cg);
    doneLabel->setEndInternalControlFlow();
 
-   doNullStoreLabel = generateWriteBarrier ? generateLabelSymbol(cg) : doneLabel;
-   startOfWrtbarLabel = generateWriteBarrier ? generateLabelSymbol(cg) : doNullStoreLabel;
+   if(generateWriteBarrier)
+      {
+      startOfWrtbarLabel = generateLabelSymbol(cg);
+      // For OffHeap we use mainline store for null stores to consolidate store paths and defer
+      // destination evaluation. OffHeap will perform redundant wrtbar on null stores.
+      doNullStoreLabel = deferDestinationEvaluation ? startOfWrtbarLabel : generateLabelSymbol(cg);
+      }
+   else
+      {
+      startOfWrtbarLabel = doneLabel;
+      doNullStoreLabel = doneLabel;
+      }
 
    bool usingCompressedPointers = false;
    bool usingLowMemHeap  = false;
@@ -2993,7 +3007,7 @@ TR::Register *J9::X86::TreeEvaluator::ArrayStoreCHKEvaluator(TR::Node *node, TR:
 
    TR::MemoryReference *tempMR = NULL;
 
-   if (generateWriteBarrier)
+   if (generateWriteBarrier && !deferDestinationEvaluation)
       {
       tempMR = generateX86MemoryReference(firstChild, cg);
       }
@@ -3123,6 +3137,12 @@ TR::Register *J9::X86::TreeEvaluator::ArrayStoreCHKEvaluator(TR::Node *node, TR:
          sourceChild->setIsNonNull(true);
          }
 
+      if (deferDestinationEvaluation)
+         {
+         // Perform deferred destination evaluation
+         tempMR = generateX86MemoryReference(firstChild, cg);
+         }
+
       TR::TreeEvaluator::VMwrtbarWithStoreEvaluator(
          node,
          tempMR,
@@ -3153,7 +3173,8 @@ TR::Register *J9::X86::TreeEvaluator::ArrayStoreCHKEvaluator(TR::Node *node, TR:
 
    if (!isRealTimeGC)
       {
-      if (generateWriteBarrier)
+      // OffHeap uses the already generated mainline VMwrtbarWithStoreEvaluator for null stores
+      if (generateWriteBarrier && !deferDestinationEvaluation)
          {
          assert(isNonRTWriteBarrierRequired);
          assert(tempMR);
@@ -3176,7 +3197,7 @@ TR::Register *J9::X86::TreeEvaluator::ArrayStoreCHKEvaluator(TR::Node *node, TR:
          generateLabelInstruction(TR::InstOpCode::JMP4, node, doneLabel, cg);
          og.endOutlinedInstructionSequence();
          }
-      else
+      else if (!generateWriteBarrier)
          {
          // No write barrier emitted.  Evaluate the store here.
          //
@@ -9431,9 +9452,10 @@ J9::X86::TreeEvaluator::vectorizedHashCodeLoopHelper(TR::Node *node,
    generateLabelInstruction(TR::InstOpCode::JGE4, node, endLabel, cg);
 
    // Initialize Constants outside of loop body but after the first compare
-   generateRegRegInstruction(TR::InstOpCode::MOVDRegReg4, node, hashRegsVRF[0], initialHash, cg);
-   for (int32_t i = 1; i < unrollCount; i++)
+   for (int32_t i = 0; i < unrollCount; i++)
       generateRegRegInstruction(TR::InstOpCode::PXORRegReg, node, hashRegsVRF[i], hashRegsVRF[i], cg, vectorEncoding);
+
+   generateRegRegInstruction(TR::InstOpCode::MOVDRegReg4, node, hashRegsVRF[0], initialHash, cg);
 
    int32_t multiplier31PowNData[16];
    // Fill multiplier array with 31^numElements
@@ -12127,7 +12149,7 @@ J9::X86::TreeEvaluator::directCallEvaluator(TR::Node *node, TR::CodeGenerator *c
             }
 
          break;
-      case TR::java_lang_StringLatin1_inflate:
+      case TR::java_lang_StringLatin1_inflate_BICII:
          if (cg->getSupportsInlineStringLatin1Inflate())
             {
             return TR::TreeEvaluator::inlineStringLatin1Inflate(node, cg);

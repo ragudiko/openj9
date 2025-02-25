@@ -1,5 +1,5 @@
-/*******************************************************************************
- * Copyright IBM Corp. and others 2001
+/*
+ * Copyright IBM Corp. and others 2025
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -18,31 +18,26 @@
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
- *******************************************************************************/
-#include "j9.h"
-#include "j9port.h"
-#include "CuTest.h"
-
-/*
- * Search for a cutest optionson the command line. Elements in argv
- * are searched in reverse order. The first element is always ignored (typically
- * the first argv element is the program name, not a command line option).
- *
- * If one is found, return its index, otherwise return 0.
  */
-UDATA
-cutest_parseCmdLine( J9PortLibrary *portLibrary, UDATA lastLegalArg , char **argv )
-{
-	PORT_ACCESS_FROM_PORT(portLibrary);
-	UDATA i;
+package org.openj9.test;
 
-	for (i = lastLegalArg; i >= 1; i--)  {
-		/* new style -Xcheck:memory options */
-		if (0 == strcmp("-verbose", argv[i])) {
-			verbose = 1;
-			j9tty_err_printf("cutest: verbose output enabled.\n");
-			return i;
+import com.ibm.oti.vm.VM;
+
+/**
+ * This test will be run with -Xcheck:memory which ensures that
+ * all memory allocations are freed before shutdown.
+ */
+public class JFRFileNameTest {
+	public static void main(String[] args) {
+		String fileName = "testFileName.jfr";
+
+		/* Test default file name a couple times */
+		VM.setJFRRecordingFileName("defaultJ9recording.jfr");
+		VM.setJFRRecordingFileName("defaultJ9recording.jfr");
+
+		/* Test different file names */
+		for (int i = 0; i < 10; i++) {
+			VM.setJFRRecordingFileName(fileName + i);
 		}
 	}
-	return 0;
 }
