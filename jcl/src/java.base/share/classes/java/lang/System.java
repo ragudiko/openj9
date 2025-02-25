@@ -425,6 +425,8 @@ public final class System {
 		    stderrProp = consoleEncoding;
 		    stdoutProp = consoleEncoding;
 		}
+		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
+		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
 		/* support for console encoding end */
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
